@@ -1,56 +1,25 @@
-# 7평의 방 — 실감피지컬컴퓨팅 2주차
+# 7평의 방
 
-[과제 사이트](https://snoopuppy582.github.io/physical-computing-twin/) · [작업 기록](https://snoopuppy582.github.io/physical-computing-twin/study-notes.html)
+실감피지컬컴퓨팅 2주차: 공간 개념화, 방문 모델링, 카페 공간 스캔.
 
-## 대상과 가정
+[과제 사이트](https://snoopuppy582.github.io/physical-computing-twin/) · [파일 및 제작 정보](https://snoopuppy582.github.io/physical-computing-twin/study-notes.html)
 
-집의 면적 약 7평은 사용자 정보다. 7 × 3.3 = 23.1㎡를 4.2 × 5.5m의 직사각형으로 단순화했다. 높이 2.4m, 문판 0.9 × 2 × 0.04m, 가구의 치수와 배치는 실측 전 가정이다.
+| 과제 | 페이지 | 자료 |
+| --- | --- | --- |
+| 공간 개념화 | room-template.html | evidence/box-scene.png |
+| AI 기반 모델링 | door-model.html | assets/room-door.glb · evidence/blender-door.png |
+| 테스트 스캔 | w02-spz-viewer.html | assets/cafe-test.spz · evidence/cafe-scan.png |
 
-## A. 트윈 대상 박스 개념화
+약 7평을 기준으로 방 4.2 × 5.5 × 2.4m와 가구 배치를 단순화했다. 박스 방문과 상세 모델의 문판은 모두 0.9 × 2 × 0.04m이다.
 
-- room-template.html / room.js: 모든 공간·가구 모델을 직육면체로 구성.
-- 바닥 1개, 벽 4면. 앞벽은 문 개구부를 위해 좌·우·상단으로 나눔.
-- 색 범례: 파란색=움직일 문, 갈색=책상, 베이지=침대, 녹회색=수납, 분홍색=욕실, 청회색=창문.
-- 전체·평면 보기, 가구 선택 시 치수·역할 표시, 이름표·벽 표시 전환, 0~90° 문 회전.
-- 증거: evidence/box-scene.png.
+## AI 사용내역
 
-## B. AI 기반 모델링
+1. Codex와 Blender MCP로 박스 개념화의 방문을 0.9 × 2 × 0.04m 크기로 모델링했다.
+2. 문판에 손잡이와 경첩을 추가하고, 고정 문틀과 회전 문판을 분리했다.
+3. GLB로 내보낸 뒤 웹 뷰어에서 경첩을 축으로 문이 열리고 닫히는 동작을 확인했다.
 
-- A와 같은 방문. 문판 폭 0.9m, 높이 2m, 두께 0.04m.
-- Door_Hinge_Pivot: 경첩 위치에서 회전하는 문판·손잡이·경첩 등 32개 부품.
-- Door_Frame: 회전하지 않는 문틀·마감 등 12개 부품.
-- assets/room-door.glb: 314,524바이트. 편집 원본: assets/room-door.blend.
-- door-model.html / door.js: 정면·뒷면·손잡이 상세 보기, 실제 GLB 회전, 메시 보기.
-- 실제 Blender 뷰포트 증거: evidence/blender-door.png, blender-door-back.png, blender-door-detail.png.
+## 실행
 
-### AI 사용내역 3줄
+이 폴더에서 `python -m http.server 8765`를 실행한 뒤 브라우저로 접속한다. Three.js와 Spark는 CDN에서 불러온다.
 
-1. Codex와 Blender MCP로 A와 같은 방문을 만들고, 가정한 문판 치수와 왼쪽 경첩 원점을 맞췄다.
-2. 양면 레버 손잡이, 경첩 3개와 나사, 얕은 문판 홈을 추가하고 고정 문틀과 움직일 문판을 나눴다.
-3. 한국어 재질 노드 이름 오류와 기본 큐브가 내보내기에 섞이는 문제를 고쳤다. 방문만 GLB로 저장하고 웹에서 문틀 고정·문판 회전을 확인했다.
-
-## C. 테스트 스캔
-
-- 사용자 제공 원본: 영통구.spz. 촬영 장비: Galaxy S24+. 앱: Scaniverse. 장소: 공부하는 카페.
-- 공개용 사본: assets/cafe-test.spz. 원본과 SHA-256 동일.
-- 5,382,655바이트(약 5.1MB), 240,570개 스플랫.
-- 원본 SHA-256: 1B1286E8BB1634C044975ADB44C3BBFC20FEB37DF4F2EC33A1B162DA33356A1A.
-- 전체 좌표 범위 약 487.5 × 480.0 × 480.0. 먼 배경점이 전체 범위를 크게 늘림.
-- 원본을 자르거나 점을 삭제하지 않고, 불투명도 0.1 이상인 점의 축별 5~95% 위치로 카메라를 맞추는 기능을 추가했다.
-- 카페는 원점 시점을 기본으로 연다. 번짐·떠 있는 조각·누락이 있어, 선명한 공간 재현을 위해서는 재촬영이 권장된다.
-- 실제 뷰어 증거: evidence/cafe-scan.png.
-- 사용자가 카페 촬영·공개 동의를 확인하고 GitHub Pages 공개를 승인했다.
-- 강의의 강의실 테스트와 촬영 장소가 다르다. 카페 테스트라는 사실을 명시하며 과제 인정 여부는 별도 확인이 필요하다.
-
-### 내 공간 촬영 계획 3줄
-
-1. 집 입구의 방문과 주변 벽·바닥을 촬영해 이번 모델의 실제 배경을 준비한다.
-2. 다음 수업 전에 실내등을 켜서 밝기가 일정한 시간에 촬영할 계획이며, 구체적인 날짜는 미정이다.
-3. 공간 사용자의 동의를 확인한 뒤 사람이 없는 상태에서, 문과 가구를 여러 높이에서 촬영할 계획이다.
-
-## 실행과 출처
-
-이 폴더에서 python -m http.server 8765를 실행하거나 GitHub Pages를 사용한다. Three.js·Spark 모듈은 CDN에서 불러온다.
-
-강의 제공 examples v2의 room-template.html, w02-spz-viewer.html의 구조와 학습 내용을 바탕으로 수정했다. 작업의 근거와 한계는 study-notes.html에 정리했다. LMS 제출 자체는 사용자가 진행한다.
-
+강의 제공 예제의 구조와 학습 내용을 바탕으로 수정했다.

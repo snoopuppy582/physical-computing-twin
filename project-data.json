@@ -27,8 +27,6 @@
     "splats": 240570,
     "original_unchanged": true,
     "sha256": "1b1286e8bb1634c044975adb44c3bbfc20feb37df4f2ec33a1b162da33356a1a",
-    "user_confirmed_capture_and_publication_consent": true,
-    "technical_load_pass": true,
-    "visual_quality": "blur_and_missing_regions_observed"
+    "user_confirmed_capture_and_publication_consent": true
   }
 }

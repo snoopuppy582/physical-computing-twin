@@ -1,38 +1,25 @@
-9/13 실감피지컬컴퓨팅 과제
+실감피지컬컴퓨팅 · 2주차
+7평의 방과 여닫는 문
+https://snoopuppy582.github.io/physical-computing-twin/
 
-대상: 7평 원룸과 여닫는 문
-전체 URL: https://snoopuppy582.github.io/physical-computing-twin/
-
-A. 트윈 대상 박스 개념화
+1. 트윈 대상 박스 개념화
+방 4.2 × 5.5 × 2.4m, 문판 0.9 × 2 × 0.04m.
+약 7평을 기준으로 치수와 배치를 단순화한 개념 모델.
+범례: 파란색=문, 갈색=책상, 베이지=침대, 녹회색=수납, 분홍색=욕실, 청회색=창문.
 URL: https://snoopuppy582.github.io/physical-computing-twin/room-template.html
-HTML: room-template.html (room.js, studio.css와 함께 실행)
-화면: evidence/box-scene.png
-범례: 파란색=움직일 문, 갈색=책상, 베이지=침대, 녹회색=수납, 분홍색=욕실, 청회색=창문.
-치수: 4.2×5.5×2.4m, 문판 0.9×2×0.04m.
-7평 면적을 바탕으로 단순화한 가정이며 실측·실제 가구 배치 자료는 아니다.
+HTML: room-template.html (room.js, studio.css 포함)
 
-B. AI 기반 모델링
-파일: assets/room-door.glb (314,524바이트, 20MB 이하)
-생성 화면: evidence/blender-door.png
-AI 사용내역 3줄:
-1. Codex와 Blender MCP로 A와 같은 방문을 만들고, 가정한 문판 치수와 왼쪽 경첩 원점을 맞췄다.
-2. 양면 레버 손잡이, 경첩 3개와 나사, 얕은 문판 홈을 추가하고 고정 문틀과 움직일 문판을 나눴다.
-3. 한국어 재질 노드 이름 오류와 기본 큐브가 내보내기에 섞이는 문제를 수정했다. 방문만 GLB로 저장하고 웹에서 문틀 고정·문판 회전을 확인했다.
+2. AI 기반 모델링
+파일: assets/room-door.glb
+제작 화면: evidence/blender-door.png
+AI 사용내역:
+1. Codex와 Blender MCP로 박스 개념화의 방문을 0.9 × 2 × 0.04m 크기로 모델링했다.
+2. 문판에 손잡이와 경첩을 추가하고, 고정 문틀과 회전 문판을 분리했다.
+3. GLB로 내보낸 뒤 웹 뷰어에서 경첩을 축으로 문이 열리고 닫히는 동작을 확인했다.
 
-C. 테스트 스캔
-원본 파일: 영통구.spz
-동일한 제출용 사본: assets/cafe-test.spz (5,382,655바이트, 240,570 스플랫)
-촬영: Galaxy S24+ / Scaniverse / 공부하는 카페
+3. 테스트 스캔
+카페 실내 공간 · Galaxy S24+ · Scaniverse
+파일: assets/cafe-test.spz (영통구.spz 원본과 동일)
+5.1MB · 240,570 스플랫
 화면: evidence/cafe-scan.png
 URL: https://snoopuppy582.github.io/physical-computing-twin/w02-spz-viewer.html
-파일 열기는 성공했다. 원점 시점에서 책상 일부가 보이지만 번짐·누락이 많아 좁은 범위 재촬영이 필요하다.
-원본의 먼 배경점 때문에 카메라가 너무 멀어지는 문제는 카메라 위치 계산을 보완했다. 원본 점은 삭제하지 않았다.
-사용자가 카페 촬영·공개 동의를 확인했다. 강의실 대신 카페를 촬영한 사실을 명시하며 수업 인정 여부는 별도 확인이 필요하다.
-
-내 공간 촬영 계획 3줄:
-1. 집 입구의 방문과 주변 벽·바닥을 촬영해 이번 모델의 실제 배경을 준비한다.
-2. 다음 수업 전에 실내등을 켜서 밝기가 일정한 시간에 촬영할 계획이며, 구체적인 날짜는 미정이다.
-3. 공간 사용자의 동의를 확인한 뒤 사람이 없는 상태에서 문과 가구를 여러 높이에서 촬영할 계획이다.
-
-LMS 제출 전 촬영 날짜를 확정하고, 카페 테스트의 과제 인정 여부를 확인한다.
-
