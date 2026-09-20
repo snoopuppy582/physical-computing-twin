@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+import { createSensorSimulation, SENSOR_TOPIC } from './mqtt-simulation.js?v=0920-2';
 
 const $ = id => document.getElementById(id);
 const stage = $('stage');
@@ -29,6 +30,14 @@ scene.add(fill);
 let config, scan, model, leaf, frame;
 let ready = false, running = false, elapsed = 0, startedAt = 0, currentAngle = 0;
 let destroyed = false, initialWorldMatrix;
+let targetAngle = 0, lastRenderTime;
+const telemetry = createSensorSimulation({ angleAt, onMessage(payload, received) {
+  targetAngle = THREE.MathUtils.clamp(payload.beta, 0, 90);
+  $('message-count').textContent = received;
+  $('sensor-beta').textContent = payload.beta.toFixed(1) + '°';
+  $('message-payload').textContent = JSON.stringify(payload, null, 2);
+} });
+$('mqtt-topic').textContent = SENSOR_TOPIC;
 const number = new Intl.NumberFormat('ko-KR');
 const smoothstep = t => { t = THREE.MathUtils.clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
@@ -66,25 +75,36 @@ function setRunning(value) {
   $('simulate').textContent = value ? '일시정지' : elapsed >= config.duration ? '다시 시뮬레이션' : elapsed > 0 ? '계속 재생' : '시뮬레이션 · 10초';
   $('simulate').setAttribute('aria-pressed', String(value));
   $('door-angle').disabled = value;
+  $('telemetry').classList.toggle('receiving', value);
+  $('mqtt-state').textContent = value ? '수신 중' : elapsed >= config.duration ? '수신 완료' : elapsed > 0 ? '일시정지' : '대기';
+}
+function resetTelemetry() {
+  telemetry.reset();
+  targetAngle = 0;
+  $('message-count').textContent = '0';
+  $('sensor-beta').textContent = '—';
+  $('message-payload').textContent = '시뮬레이션을 시작하면 메시지가 표시됩니다.';
 }
 function play() {
   if (!ready) return;
   if (running) { pause(); return; }
   if (elapsed >= config.duration) elapsed = 0;
-  setAngle(angleAt(elapsed));
+  if (elapsed === 0) { resetTelemetry(); setAngle(0); }
   startedAt = performance.now() - elapsed * 1000;
   setRunning(true);
   updatePlayback();
 }
 function pause() {
   if (running) elapsed = Math.min(config.duration, (performance.now() - startedAt) / 1000);
-  if (leaf) setAngle(angleAt(elapsed));
+  telemetry.publishUntil(elapsed);
+  if (leaf) setAngle(targetAngle);
   setRunning(false);
   updatePlayback();
 }
 function reset() {
   if (!ready) return;
   elapsed = 0;
+  resetTelemetry();
   setRunning(false);
   setAngle(0);
   updatePlayback();
@@ -152,6 +172,7 @@ $('simulate').addEventListener('click', play);
 $('reset').addEventListener('click', reset);
 $('door-angle').addEventListener('input', event => {
   elapsed = 0;
+  resetTelemetry();
   setRunning(false);
   setAngle(Number(event.target.value));
   updatePlayback();
@@ -169,18 +190,21 @@ const resizeObserver = new ResizeObserver(() => {
 });
 resizeObserver.observe(stage);
 renderer.setAnimationLoop(now => {
+  const delta = lastRenderTime === undefined ? 1 / 60 : Math.min((now - lastRenderTime) / 1000, .1);
+  lastRenderTime = now;
   if (running) {
     elapsed = Math.min(config.duration, (performance.now() - startedAt) / 1000);
-    setAngle(angleAt(elapsed));
+    telemetry.publishUntil(elapsed);
+    setAngle(THREE.MathUtils.damp(currentAngle, targetAngle, 24, delta));
     updatePlayback();
-    if (elapsed >= config.duration) setRunning(false);
+    if (elapsed >= config.duration) { setAngle(0); setRunning(false); }
   }
   controls.update();
   renderer.render(scene, camera);
 });
 // Expose scene state for verification and deliberate capture; nothing is sent remotely.
 window.twinScene = {
-  scene, camera, renderer, controls, spark, play, pause, reset, view, setAngle, angleAt,
+  scene, camera, renderer, controls, spark, play, pause, reset, view, setAngle, angleAt, telemetry,
   get ready() { return ready; }, get running() { return running; }, get elapsed() { return elapsed; },
   get config() { return config; }, get scan() { return scan; }, get model() { return model; },
   get leaf() { return leaf; }, get frame() { return frame; }, get initialFrameMatrix() { return initialWorldMatrix; }
@@ -191,6 +215,7 @@ window.addEventListener('pagehide', event => {
   resizeObserver.disconnect();
   renderer.setAnimationLoop(null);
   controls.dispose();
+  telemetry.dispose();
   scan?.dispose();
   spark.dispose();
   renderer.dispose();

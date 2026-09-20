@@ -4,7 +4,7 @@
 
 [통합 장면](https://snoopuppy582.github.io/physical-computing-twin/) · [제작 정보](https://snoopuppy582.github.io/physical-computing-twin/week03-notes.html) · [9월 13일 과제](https://snoopuppy582.github.io/physical-computing-twin/week02.html)
 
-카페 스플랫과 방문 GLB를 하나의 Three.js 장면에 배치했다. 시뮬레이션 버튼을 누르면 고정 문틀 안의 문판이 경첩 축으로 열리고 닫힌다.
+카페 스플랫과 방문 GLB를 하나의 Three.js 장면에 배치했다. 시뮬레이션 버튼을 누르면 고정 문틀 안의 문판이 경첩 축으로 열리고 닫힌다. MQTT용 토픽과 JSON 센서 페이로드를 브라우저 내부의 발행·구독 경로로 전달한다. 네트워크 브로커 없이 10초 동안 100개의 가상 메시지를 수신한다.
 
 | 자료 | 파일 |
 | --- | --- |

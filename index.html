@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>카페, 한 개의 문 · 스플랫 + 메시</title>
-<link rel="icon" href="data:,"><link rel="stylesheet" href="studio.css"><link rel="stylesheet" href="twin.css?v=0920-1">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="studio.css"><link rel="stylesheet" href="twin.css?v=0920-2">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"}}</script>
 </head>
 <body>
@@ -19,6 +19,7 @@
 <aside class="sidebar twin-sidebar">
 <span class="eyebrow">Scene 03 / 2026.09.20</span><h2>스캔한 공간, 움직이는 문</h2><p>카페의 스플랫 배경에 방문 모델을 배치했습니다. 문틀은 고정되고 문판은 경첩을 따라 움직입니다.</p>
 <section class="section">
+<div class="telemetry" id="telemetry"><div class="telemetry-heading"><strong><i class="signal-dot"></i>MQTT 시뮬레이션</strong><span class="sim-tag">LOCAL</span></div><div class="signal-flow"><span>가상 센서</span><i>→</i><span>메시지</span><i>→</i><span>방문</span></div><div class="telemetry-metrics"><div><small>상태</small><b id="mqtt-state">대기</b></div><div><small>수신 메시지</small><b id="message-count">0</b></div><div><small>센서 각도</small><b id="sensor-beta">—</b></div></div></div>
 <div class="angle-line"><b>방문 열림</b><output id="angle-output">0°</output></div>
 <button class="button primary play-button" id="simulate" aria-pressed="false" disabled>시뮬레이션 · 10초</button>
 <progress class="timeline" id="timeline" max="10" value="0" aria-label="시뮬레이션 진행"></progress>
@@ -26,9 +27,10 @@
 <div class="button-row" style="margin-top:14px"><button class="button" id="reset" disabled>처음으로</button></div>
 <p>닫힘 → 열림 → 닫힘</p>
 <details class="manual-control"><summary>각도 직접 조절</summary><input id="door-angle" type="range" min="0" max="90" value="0" aria-label="방문 열림 각도" disabled></details>
+<details class="message-detail"><summary>메시지 보기</summary><code id="mqtt-topic"></code><pre id="message-payload">시뮬레이션을 시작하면 메시지가 표시됩니다.</pre><small>브라우저 내부에서 MQTT 메시지 흐름을 재현합니다.</small></details>
 </section>
 <section class="section"><div class="data-row"><span>배경</span><b>카페 · SPZ</b></div><div class="data-row"><span>오브젝트</span><b>방문 · GLB</b></div><div class="data-row"><span>스플랫</span><b id="splat-count">—</b></div><div class="data-row"><span>배경 파일</span><b id="scan-size">—</b></div><div class="status" id="load-status" role="status">불러오는 중</div></section>
-<section class="section"><a class="resource" href="media/week03-simulation.mp4">10초 시뮬레이션 영상 ↗</a><a class="resource" href="evidence/week03-scene.png">장면 스크린샷 ↗</a><div class="button-row"><a class="button" id="scan-download" href="assets/cafe-clean.spz" download>SPZ</a><a class="button" href="assets/room-door.glb" download>GLB</a></div></section>
+<section class="section"><a class="resource" href="media/week03-simulation.mp4?v=0920-2">10초 시뮬레이션 영상 ↗</a><a class="resource" href="evidence/week03-scene.png?v=0920-2">장면 스크린샷 ↗</a><div class="button-row"><a class="button" id="scan-download" href="assets/cafe-clean.spz" download>SPZ</a><a class="button" href="assets/room-door.glb" download>GLB</a></div></section>
 </aside></main>
-<script type="module" src="twin.js?v=0920-1"></script>
+<script type="module" src="twin.js?v=0920-2"></script>
 </body></html>
