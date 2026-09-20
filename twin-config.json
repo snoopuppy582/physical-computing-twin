@@ -1,0 +1,44 @@
+{
+  "scanUrl": "assets/cafe-clean.spz",
+  "modelUrl": "assets/room-door.glb",
+  "scanPosition": [
+    0,
+    0,
+    0
+  ],
+  "scanRotation": [
+    0,
+    0,
+    0
+  ],
+  "scanScale": 1,
+  "doorPosition": [
+    1.2,
+    -1.5,
+    -2.6
+  ],
+  "doorRotationY": -0.25,
+  "camera": [
+    0,
+    0.02,
+    0.04
+  ],
+  "target": [
+    0.7,
+    -0.2,
+    -2.4
+  ],
+  "detailCamera": [
+    0.7,
+    0.02,
+    -0.3
+  ],
+  "detailTarget": [
+    1.55,
+    -0.4,
+    -2.6
+  ],
+  "duration": 10,
+  "maxAngle": 80,
+  "openSign": -1
+}
