@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {HDRLoader} from 'three/addons/loaders/HDRLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {BROKERS,makeRoom,formatRoom,sessionFromHash,sessionHash,phoneURL,deg,LIMITS} from './flight-core.mjs';
-import {connectFlight} from './flight-mqtt.mjs';
+import {BROKERS,makeRoom,formatRoom,sessionFromHash,sessionHash,phoneURL,poseQuaternion,displayAngles,DISPLAY_RANGES} from './flight-core.mjs?v=1011-q2';
+import {connectFlight} from './flight-mqtt.mjs?v=1011-q2';
 
 const $=id=>document.getElementById(id);
 const stage=$('flight-stage'),loading=$('scene-loading');
 let session=sessionFromHash(location.hash),transport=null,modelReady=false,lastPoseAt=0,received=0;
-let targetPose={rx:0,ry:0,rz:0},lastSource='sensor',timer=null,toastTimeout;
+let lastSource='sensor',timer=null,toastTimeout;
 try{if(!session.room)session.room=sessionFromHash(sessionStorage.getItem('flight-session')||'').room;}catch{}
 if(!session.room)session.room=makeRoom();
 
@@ -20,19 +20,21 @@ function syncSession(){
   $('room-code').textContent=formatRoom(session.room);
   $('broker-name').textContent=`${BROKERS[session.broker].name} · 공개`;
   const link=phoneURL(location.href,session.room,session.broker);
-  const manual=new URL(link);manual.search='?mode=manual';$('manual-link').href=manual.href;
+  const manual=new URL(link);manual.searchParams.set('mode','manual');$('manual-link').href=manual.href;
   try{
     const qr=globalThis.qrcode(0,'M');qr.addData(link,'Byte');qr.make();
     $('pairing-qr').innerHTML=qr.createSvgTag({cellSize:4,margin:16,scalable:true,alt:'스마트폰 연결 QR'});
   }catch{$('pairing-qr').textContent='QR을 불러오지 못했습니다. 연결 링크를 복사해 주세요.';}
 }
 function updatePose(pose){
-  targetPose={rx:pose.rx,ry:pose.ry,rz:pose.rz};
+  const q=poseQuaternion(pose);if(!q)return;
+  targetQuaternion.fromArray(q);
+  const angles=displayAngles(q);
   lastSource=pose.source;lastPoseAt=performance.now();received++;
   $('received-count').textContent=String(received);
-  for(const [name,key] of [['roll','rz'],['pitch','rx'],['yaw','ry']]){
-    const value=pose[key];$(name+'-value').textContent=value.toFixed(1);
-    const amount=value/LIMITS[key]*50;$(name+'-meter').style.left=`${50+Math.min(0,amount)}%`;$(name+'-meter').style.width=`${Math.abs(amount)}%`;
+  for(const name of ['roll','pitch','yaw']){
+    const value=angles[name];$(name+'-value').textContent=value.toFixed(1);
+    const amount=value/DISPLAY_RANGES[name]*50;$(name+'-meter').style.left=`${50+Math.min(0,amount)}%`;$(name+'-meter').style.width=`${Math.abs(amount)}%`;
   }
   $('source-label').textContent=pose.source==='sensor'?'PHONE SENSOR / LIVE':'MQTT CONTROL / LIVE';
   $('input-name').textContent=pose.source==='sensor'?'휴대폰 센서':'제어판';
@@ -87,13 +89,12 @@ async function buildScene(){
   const box=new THREE.Box3().setFromObject(body),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
   model.position.sub(center);
   const normalized=new THREE.Group();normalized.add(model);normalized.scale.setScalar(4.7/Math.max(size.x,size.y,size.z));
-  normalized.rotation.y=Math.PI; // Original model's nose faces +Z; the flight direction is -Z.
+  normalized.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI); // +Z nose → -Z.
   aircraft.add(normalized);await skyPromise;
   modelReady=true;loading.hidden=true;
   let last=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min((now-last)/1000,.1);last=now;
-    targetQuaternion.setFromEuler(new THREE.Euler(deg(targetPose.rx),deg(targetPose.ry),deg(targetPose.rz),'YXZ'));
     aircraft.quaternion.slerp(targetQuaternion,1-Math.exp(-14*dt));
     controls.update();renderer.render(scene,camera);
   });

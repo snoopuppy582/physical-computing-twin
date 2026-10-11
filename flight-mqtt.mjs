@@ -1,4 +1,4 @@
-import {BROKERS,topics,makeReceiver} from './flight-core.mjs';
+import {BROKERS,topics,makeReceiver,quaternionFields,PROTOCOL_VERSION} from './flight-core.mjs?v=1011-q2';
 
 // Every pose crosses an actual WebSocket MQTT broker; no browser-local bus.
 export function connectFlight({room,broker='emqx',role,onState=()=>{},onPose=()=>{},onLatency=()=>{},mqttLib=globalThis.mqtt}) {
@@ -37,7 +37,12 @@ export function connectFlight({room,broker='emqx',role,onState=()=>{},onPose=()=
   client.on('error',()=>state('error'));onState('connecting');
   return {
     get ready(){return ready&&client.connected&&!ended;},get topic(){return channel.pose;},
-    send(pose,source='sensor'){if(role!=='sender'||!ready||!client.connected||ended)return false;const message={...pose,source,device,seq:++seq,t:Date.now()};client.publish(channel.pose,JSON.stringify(message),{qos:0,retain:false});return message;},
+    send(quaternion,source='sensor'){
+      if(role!=='sender'||!ready||!client.connected||ended)return false;
+      const fields=quaternionFields(quaternion);if(!fields)return false;
+      const message={v:PROTOCOL_VERSION,...fields,source:source==='sensor'?'sensor':'manual',device,seq:++seq,t:Date.now()};
+      client.publish(channel.pose,JSON.stringify(message),{qos:0,retain:false});return message;
+    },
     close(){ended=true;ready=false;clearProbes();client.end(true);}
   };
 }

@@ -1,9 +1,10 @@
-import {BROKERS,normalizeRoom,formatRoom,sessionFromHash,sessionHash,orientationQuaternion,relativePose} from './flight-core.mjs';
-import {connectFlight} from './flight-mqtt.mjs';
+import {BROKERS,normalizeRoom,formatRoom,sessionFromHash,sessionHash,orientationQuaternion,relativeQuaternion,integrateLocalRotation,displayAngles} from './flight-core.mjs?v=1011-q2';
+import {connectFlight} from './flight-mqtt.mjs?v=1011-q2';
 
 const $=id=>document.getElementById(id);
 let session=sessionFromHash(location.hash),mode='sensor',transport=null,running=false,starting=false,generation=0;
 let latest=null,reference=null,sent=0,timer=null,sensorTimeout=null,wakeLock=null;
+let manualQuaternion=[0,0,0,1],manualAt=0;
 const screenAngle=()=>screen.orientation?.angle||0;
 const stateText={connecting:'MQTT 연결 중',subscribing:'연결 준비 중',connected:'전송 중',reconnecting:'MQTT 재연결 중',error:'연결 확인 필요'};
 function notice(text=''){$('phone-notice').textContent=text;$('phone-notice').hidden=!text;}
@@ -14,10 +15,12 @@ function updateSession(){
   $('phone-room').textContent=session.room?formatRoom(session.room):'QR로 연결해 주세요.';
   if(session.room)history.replaceState(null,'',`${location.pathname}${location.search}#${sessionHash(session.room,session.broker)}`);
 }
-function manualPose(){return {rx:+$('manual-pitch').value,ry:+$('manual-yaw').value,rz:+$('manual-roll').value};}
-function displayPose(pose){
-  $('phone-roll').textContent=pose.rz.toFixed(1);$('phone-pitch').textContent=pose.rx.toFixed(1);$('phone-yaw').textContent=pose.ry.toFixed(1);
-  $('attitude-world').style.transform=`rotate(${-pose.rz}deg) translateY(${pose.rx*1.1}px)`;
+function manualRates(){return [+$('manual-pitch').value,+$('manual-yaw').value,+$('manual-roll').value];}
+function haltManual(){for(const name of ['roll','pitch','yaw']){$('manual-'+name).value='0';$('manual-'+name+'-value').textContent='0°/s';}}
+function displayPose(quaternion){
+  const angles=displayAngles(quaternion);if(!angles)return;
+  $('phone-roll').textContent=angles.roll.toFixed(1);$('phone-pitch').textContent=angles.pitch.toFixed(1);$('phone-yaw').textContent=angles.yaw.toFixed(1);
+  $('attitude-world').style.transform=`rotate(${-angles.roll}deg) translateY(${angles.pitch*1.1}px)`;
 }
 function onOrientation(event){
   if(!running||mode!=='sensor')return;
@@ -29,22 +32,25 @@ function onOrientation(event){
 }
 function recalibrate(){
   if(mode==='manual'){
-    for(const name of ['roll','pitch','yaw']){$('manual-'+name).value='0';$('manual-'+name+'-value').textContent='0°';}
-    displayPose(manualPose());
-  }else if(latest){reference=latest.q;displayPose({rx:0,ry:0,rz:0});notice();}
+    haltManual();manualQuaternion=[0,0,0,1];manualAt=performance.now();displayPose(manualQuaternion);
+  }else if(latest){reference=latest.q;displayPose([0,0,0,1]);notice();}
 }
 function screenChanged(){reference=null;latest=null;if(running&&mode==='sensor'){notice('화면 방향이 바뀌어 기준 자세를 다시 맞춥니다.');$('calibrate').disabled=true;}}
 function transmit(){
   if(!running)return;
-  let pose;
+  let quaternion;
   if(mode==='sensor'){
     // Some browsers emit orientation only when it changes. Keep publishing the
     // last measured attitude while this page is visible, including at rest.
     if(!latest||!reference){status('센서 신호 대기');$('calibrate').disabled=true;return;}
-    pose=relativePose(latest.q,reference);
-  }else pose=manualPose();
-  displayPose(pose);
-  if(transport?.send(pose,mode==='sensor'?'sensor':'manual')){sent++;$('sent-count').textContent=String(sent);status(mode==='sensor'?'센서 전송 중':'제어판 전송 중',true);}
+    quaternion=relativeQuaternion(latest.q,reference);
+  }else{
+    const now=performance.now(),dt=Math.min((now-manualAt)/1000,.25);manualAt=now;
+    manualQuaternion=integrateLocalRotation(manualQuaternion,manualRates(),dt);quaternion=manualQuaternion;
+  }
+  if(!quaternion)return;
+  displayPose(quaternion);
+  if(transport?.send(quaternion,mode==='sensor'?'sensor':'manual')){sent++;$('sent-count').textContent=String(sent);status(mode==='sensor'?'센서 전송 중':'제어판 전송 중',true);}
 }
 async function keepAwake(){try{if(navigator.wakeLock&&!document.hidden)wakeLock=await navigator.wakeLock.request('screen');}catch{}}
 function stop(message='전송 중지'){
@@ -54,7 +60,7 @@ function stop(message='전송 중지'){
   screen.orientation?.removeEventListener('change',screenChanged);
   transport?.close();transport=null;
   wakeLock?.release().catch(()=>{});wakeLock=null;
-  latest=null;reference=null;
+  latest=null;reference=null;haltManual();
   $('start-sensor').hidden=false;$('start-sensor').disabled=!session.room;$('stop-sensor').hidden=true;$('calibrate').disabled=true;
   status(message);
 }
@@ -74,6 +80,7 @@ async function start(){
   }
   if(token!==generation)return;
   running=true;starting=false;latest=null;reference=null;sent=0;$('sent-count').textContent='0';
+  manualAt=performance.now();
   $('start-sensor').hidden=true;$('stop-sensor').hidden=false;$('calibrate').disabled=mode!=='manual';
   if(mode==='sensor'){
     window.addEventListener('deviceorientation',onOrientation);
@@ -96,7 +103,8 @@ function setMode(next){
 }
 $('start-sensor').addEventListener('click',start);$('stop-sensor').addEventListener('click',()=>stop());$('calibrate').addEventListener('click',recalibrate);
 $('sensor-tab').addEventListener('click',()=>setMode('sensor'));$('manual-tab').addEventListener('click',()=>setMode('manual'));
-for(const name of ['roll','pitch','yaw'])$('manual-'+name).addEventListener('input',()=>{$('manual-'+name+'-value').textContent=$('manual-'+name).value+'°';displayPose(manualPose());});
+for(const name of ['roll','pitch','yaw'])$('manual-'+name).addEventListener('input',()=>{$('manual-'+name+'-value').textContent=$('manual-'+name).value+'°/s';});
+$('manual-halt').addEventListener('click',haltManual);
 $('join-room').addEventListener('click',()=>{const room=normalizeRoom($('room-input').value);if(!room){notice('컴퓨터 화면의 연결 번호 12자리를 입력해 주세요.');return;}session.room=room;notice();updateSession();});
 window.addEventListener('hashchange',()=>{stop();session=sessionFromHash(location.hash);updateSession();});
 window.addEventListener('pagehide',()=>stop());
