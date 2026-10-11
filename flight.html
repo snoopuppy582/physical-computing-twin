@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="스마트폰의 움직임을 MQTT로 전달해 비행기의 자세를 제어합니다.">
+<title>비행 자세 제어 · 실감피지컬컴퓨팅</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="flight.css?v=1011-1">
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
+<script src="vendor/mqtt.min.js" defer></script><script src="vendor/qrcode.js" defer></script>
+</head><body>
+<header class="topbar"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">↗</span><span><strong>FLIGHT / 비행 자세 제어</strong><small>실감피지컬컴퓨팅 · MQTT + 3D</small></span></a><nav aria-label="프로젝트"><a href="week03.html">지난 과제</a><a href="flight-credits.html">제작 정보</a><span class="connection-pill" id="broker-pill" role="status"><i class="dot"></i><span id="broker-state">MQTT 연결 중</span></span></nav></header>
+<main class="flight-layout"><section class="scene-column" aria-label="비행기 장면">
+<div class="heading"><div><span class="eyebrow">PHONE → MQTT → AIRCRAFT</span><h1>손끝의 움직임이, 비행기의 자세로.</h1><p>스마트폰을 기울이면 하늘 위 비행기가 같은 방향으로 반응합니다.</p></div><div class="record-widget"><h2 class="small-title">10초 측정</h2><div class="timer-row"><button class="secondary" id="timer-start" disabled>측정 시작</button><output id="timer-value">00.0 s</output></div><progress id="timer-progress" class="timer-progress" value="0" max="10" aria-label="10초 측정 진행"></progress><p id="timer-note">센서가 연결되면 사용할 수 있습니다.</p></div></div>
+<div class="scene" id="flight-stage"><div class="scene-top"><span class="scene-tag">AIRCRAFT / 01</span><span class="scene-tag" id="source-label">입력 대기</span></div><div class="horizon-marker" aria-hidden="true"><span></span><b></b><span></span></div><div class="loading" id="scene-loading" role="status">비행기와 하늘을 불러오는 중입니다.</div><div class="scene-buttons"><button id="reset-camera">기본 시점</button><button id="fullscreen">전체 화면</button></div><span class="scene-note">드래그 · 시점 변경 / 휠 · 확대</span></div>
+<div class="instruments" aria-label="수신한 비행기 자세">
+<div class="instrument"><small>좌우 기울기 · ROLL</small><strong><span id="roll-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="roll-meter"></i></div></div>
+<div class="instrument"><small>앞뒤 기울기 · PITCH</small><strong><span id="pitch-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="pitch-meter"></i></div></div>
+<div class="instrument"><small>방향 · YAW</small><strong><span id="yaw-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="yaw-meter"></i></div></div></div>
+<div class="status-line"><span class="signal-state" id="signal-state"><i class="dot"></i><span id="signal-label">스마트폰을 연결해 주세요.</span></span><div class="stats"><span>수신 <b id="received-count">0</b>회</span><span>왕복 지연 <b id="latency-value">—</b></span></div></div>
+</section><aside class="side-panel" aria-label="연결과 상태">
+<section class="card"><span class="eyebrow">CONNECT YOUR PHONE</span><h2>스마트폰으로 조종하기</h2><p>카메라로 QR을 찍어<br>휴대폰 제어 화면을 열어 주세요.</p><div class="qr-box" id="pairing-qr" aria-label="휴대폰 제어 화면 QR"></div><div class="room-code" id="room-code"></div><button class="secondary full" id="copy-link">연결 링크 복사</button><ol class="pairing-steps"><li>휴대폰에서 ‘센서 시작’을 누르세요.</li><li>편한 자세로 잡고 ‘기준 자세 설정’.</li><li>폰을 좌우·앞뒤로 천천히 기울이세요.</li></ol><div class="small-actions"><a id="manual-link" href="phone.html" target="_blank" rel="noopener">PC 제어판 열기 ↗</a><button class="quiet" id="new-session">새 연결 번호</button></div></section>
+<section class="card compact"><h2 class="small-title">연결 정보</h2><div class="network-row"><span>브로커</span><b id="broker-name">EMQX · 공개</b></div><div class="network-row"><span>입력</span><b id="input-name">대기</b></div><details><summary>연결이 잘 안 되나요?</summary><p>다시 연결한 뒤 휴대폰에서도 센서를 다시 시작해 주세요. 연결 번호는 그대로 유지됩니다.</p><button class="quiet" id="reconnect">다시 연결</button></details></section>
+
+</aside></main><footer class="footer"><span>실감피지컬컴퓨팅 · 2026.10.11</span><a href="flight-credits.html">Airplane © Poly by Google · CC BY 3.0 / Sky © Poly Haven · CC0</a></footer>
+<div class="toast" id="toast" role="status" hidden></div><noscript><p>3D 장면을 보려면 JavaScript를 켜 주세요.</p></noscript><script type="module" src="flight.js?v=1011-1"></script></body></html>

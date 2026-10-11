@@ -1,36 +1,24 @@
 <!doctype html>
-<html lang="ko">
-<head>
+<html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>카페, 한 개의 문 · 스플랫 + 메시</title>
-<link rel="icon" href="data:,"><link rel="stylesheet" href="studio.css"><link rel="stylesheet" href="twin.css?v=0920-2">
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"}}</script>
-</head>
-<body>
-<header class="topbar"><a class="brand" href="index.html"><strong>공간과 움직임</strong><span>실감피지컬컴퓨팅 · 3주차</span></a><nav aria-label="과제 이동"><a href="index.html" aria-current="page">통합 장면</a><a href="week03-notes.html">제작 정보</a><a href="week02.html">지난 과제</a></nav></header>
-<main class="workspace">
-<section class="stage twin-stage" id="stage" aria-label="카페 스플랫과 방문 메시를 합친 3D 장면">
-<div class="stage-label"><span class="eyebrow">Splat + Mesh</span><h1>카페, 한 개의 문.</h1><p>기록한 공간에 움직임을 더하다.</p></div>
-<div class="scene-state">방문 <b id="scene-angle">0°</b></div>
-<div class="loading-card" id="loading" role="status">카페와 방문을 불러오고 있습니다…</div>
-<div class="stage-tools"><button data-view="default">처음 시점</button><button data-view="detail">문 가까이</button></div>
-<span class="stage-note">드래그 회전 · 휠 확대 · 우클릭 이동</span>
-</section>
-<aside class="sidebar twin-sidebar">
-<span class="eyebrow">Scene 03 / 2026.09.20</span><h2>스캔한 공간, 움직이는 문</h2><p>카페의 스플랫 배경에 방문 모델을 배치했습니다. 문틀은 고정되고 문판은 경첩을 따라 움직입니다.</p>
-<section class="section">
-<div class="telemetry" id="telemetry"><div class="telemetry-heading"><strong><i class="signal-dot"></i>MQTT 시뮬레이션</strong><span class="sim-tag">LOCAL</span></div><div class="signal-flow"><span>가상 센서</span><i>→</i><span>메시지</span><i>→</i><span>방문</span></div><div class="telemetry-metrics"><div><small>상태</small><b id="mqtt-state">대기</b></div><div><small>수신 메시지</small><b id="message-count">0</b></div><div><small>센서 각도</small><b id="sensor-beta">—</b></div></div></div>
-<div class="angle-line"><b>방문 열림</b><output id="angle-output">0°</output></div>
-<button class="button primary play-button" id="simulate" aria-pressed="false" disabled>시뮬레이션 · 10초</button>
-<progress class="timeline" id="timeline" max="10" value="0" aria-label="시뮬레이션 진행"></progress>
-<div class="playback-info"><span class="phase-label" id="phase">닫힘</span><span id="elapsed">0.0 / 10.0초</span></div>
-<div class="button-row" style="margin-top:14px"><button class="button" id="reset" disabled>처음으로</button></div>
-<p>닫힘 → 열림 → 닫힘</p>
-<details class="manual-control"><summary>각도 직접 조절</summary><input id="door-angle" type="range" min="0" max="90" value="0" aria-label="방문 열림 각도" disabled></details>
-<details class="message-detail"><summary>메시지 보기</summary><code id="mqtt-topic"></code><pre id="message-payload">시뮬레이션을 시작하면 메시지가 표시됩니다.</pre><small>브라우저 내부에서 MQTT 메시지 흐름을 재현합니다.</small></details>
-</section>
-<section class="section"><div class="data-row"><span>배경</span><b>카페 · SPZ</b></div><div class="data-row"><span>오브젝트</span><b>방문 · GLB</b></div><div class="data-row"><span>스플랫</span><b id="splat-count">—</b></div><div class="data-row"><span>배경 파일</span><b id="scan-size">—</b></div><div class="status" id="load-status" role="status">불러오는 중</div></section>
-<section class="section"><a class="resource" href="media/week03-simulation.mp4?v=0920-2">10초 시뮬레이션 영상 ↗</a><a class="resource" href="evidence/week03-scene.png?v=0920-2">장면 스크린샷 ↗</a><div class="button-row"><a class="button" id="scan-download" href="assets/cafe-clean.spz" download>SPZ</a><a class="button" href="assets/room-door.glb" download>GLB</a></div></section>
-</aside></main>
-<script type="module" src="twin.js?v=0920-2"></script>
-</body></html>
+<meta name="description" content="스마트폰의 움직임을 MQTT로 전달해 비행기의 자세를 제어합니다.">
+<title>비행 자세 제어 · 실감피지컬컴퓨팅</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="flight.css?v=1011-1">
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
+<script src="vendor/mqtt.min.js" defer></script><script src="vendor/qrcode.js" defer></script>
+</head><body>
+<header class="topbar"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">↗</span><span><strong>FLIGHT / 비행 자세 제어</strong><small>실감피지컬컴퓨팅 · MQTT + 3D</small></span></a><nav aria-label="프로젝트"><a href="week03.html">지난 과제</a><a href="flight-credits.html">제작 정보</a><span class="connection-pill" id="broker-pill" role="status"><i class="dot"></i><span id="broker-state">MQTT 연결 중</span></span></nav></header>
+<main class="flight-layout"><section class="scene-column" aria-label="비행기 장면">
+<div class="heading"><div><span class="eyebrow">PHONE → MQTT → AIRCRAFT</span><h1>손끝의 움직임이, 비행기의 자세로.</h1><p>스마트폰을 기울이면 하늘 위 비행기가 같은 방향으로 반응합니다.</p></div><div class="record-widget"><h2 class="small-title">10초 측정</h2><div class="timer-row"><button class="secondary" id="timer-start" disabled>측정 시작</button><output id="timer-value">00.0 s</output></div><progress id="timer-progress" class="timer-progress" value="0" max="10" aria-label="10초 측정 진행"></progress><p id="timer-note">센서가 연결되면 사용할 수 있습니다.</p></div></div>
+<div class="scene" id="flight-stage"><div class="scene-top"><span class="scene-tag">AIRCRAFT / 01</span><span class="scene-tag" id="source-label">입력 대기</span></div><div class="horizon-marker" aria-hidden="true"><span></span><b></b><span></span></div><div class="loading" id="scene-loading" role="status">비행기와 하늘을 불러오는 중입니다.</div><div class="scene-buttons"><button id="reset-camera">기본 시점</button><button id="fullscreen">전체 화면</button></div><span class="scene-note">드래그 · 시점 변경 / 휠 · 확대</span></div>
+<div class="instruments" aria-label="수신한 비행기 자세">
+<div class="instrument"><small>좌우 기울기 · ROLL</small><strong><span id="roll-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="roll-meter"></i></div></div>
+<div class="instrument"><small>앞뒤 기울기 · PITCH</small><strong><span id="pitch-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="pitch-meter"></i></div></div>
+<div class="instrument"><small>방향 · YAW</small><strong><span id="yaw-value">0.0</span><span class="unit">°</span></strong><div class="meter"><i id="yaw-meter"></i></div></div></div>
+<div class="status-line"><span class="signal-state" id="signal-state"><i class="dot"></i><span id="signal-label">스마트폰을 연결해 주세요.</span></span><div class="stats"><span>수신 <b id="received-count">0</b>회</span><span>왕복 지연 <b id="latency-value">—</b></span></div></div>
+</section><aside class="side-panel" aria-label="연결과 상태">
+<section class="card"><span class="eyebrow">CONNECT YOUR PHONE</span><h2>스마트폰으로 조종하기</h2><p>카메라로 QR을 찍어<br>휴대폰 제어 화면을 열어 주세요.</p><div class="qr-box" id="pairing-qr" aria-label="휴대폰 제어 화면 QR"></div><div class="room-code" id="room-code"></div><button class="secondary full" id="copy-link">연결 링크 복사</button><ol class="pairing-steps"><li>휴대폰에서 ‘센서 시작’을 누르세요.</li><li>편한 자세로 잡고 ‘기준 자세 설정’.</li><li>폰을 좌우·앞뒤로 천천히 기울이세요.</li></ol><div class="small-actions"><a id="manual-link" href="phone.html" target="_blank" rel="noopener">PC 제어판 열기 ↗</a><button class="quiet" id="new-session">새 연결 번호</button></div></section>
+<section class="card compact"><h2 class="small-title">연결 정보</h2><div class="network-row"><span>브로커</span><b id="broker-name">EMQX · 공개</b></div><div class="network-row"><span>입력</span><b id="input-name">대기</b></div><details><summary>연결이 잘 안 되나요?</summary><p>다시 연결한 뒤 휴대폰에서도 센서를 다시 시작해 주세요. 연결 번호는 그대로 유지됩니다.</p><button class="quiet" id="reconnect">다시 연결</button></details></section>
+
+</aside></main><footer class="footer"><span>실감피지컬컴퓨팅 · 2026.10.11</span><a href="flight-credits.html">Airplane © Poly by Google · CC BY 3.0 / Sky © Poly Haven · CC0</a></footer>
+<div class="toast" id="toast" role="status" hidden></div><noscript><p>3D 장면을 보려면 JavaScript를 켜 주세요.</p></noscript><script type="module" src="flight.js?v=1011-1"></script></body></html>
