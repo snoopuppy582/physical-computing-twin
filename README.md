@@ -1,4 +1,20 @@
-# FLIGHT / 비행 자세 제어
+# 실감피지컬컴퓨팅
+
+## 중간 발표 · 냉각 거치대
+
+[냉각 거치대 3D 장면](https://snoopuppy582.github.io/physical-computing-twin/cooler.html) · [MQTT 제어판](https://snoopuppy582.github.io/physical-computing-twin/twin-control.html)
+
+두 페이지를 함께 열고 제어판에서 출력을 바꾼다. 메시지가 공개 EMQX 브로커를 거쳐 장면에 도착하면 가상 팬이 회전한다. 같은 기본 연결 번호를 사용하므로 두 주소를 그대로 열어 시연할 수 있다. 별도 연결은 두 주소에 같은 `#room=연결이름`을 붙여 구분한다.
+
+현재는 실제 사진과 치수를 반영하기 전의 설치 구상이다. **실제 팬은 연결하지 않았으며**, CPU·GPU 온도와 실측 RPM은 값을 표시하지 않는다. 하판 보기와 팬 확대에서는 노트북을 반투명으로 표시해 팬의 설치 위치를 확인한다.
+
+- `cooler.html` · `cooler.js` · `cooler.css`: 책상·노트북·거치대·팬 3D 장면.
+- `twin-control.html` · `cooler-control.js`: 출력 설정, 장면 수신 확인, 왕복 지연.
+- `cooler-core.mjs` · `cooler-mqtt.mjs`: 연결 번호·메시지 검증·MQTT 통신.
+
+실물 제어와 계정 정보는 포함하지 않는다. 공개 브로커의 연결 번호는 인증 수단이 아니며, 이 페이지는 가상 팬 시연용이다. 제어판의 전송이 끊기면 장면은 8초 후 가상 팬을 정지한다.
+
+## 지난 과제 · FLIGHT / 비행 자세 제어
 
 [비행기 장면](https://snoopuppy582.github.io/physical-computing-twin/flight.html) · [휴대폰 제어 화면](https://snoopuppy582.github.io/physical-computing-twin/phone.html) · [제작 정보·에셋 출처](https://snoopuppy582.github.io/physical-computing-twin/flight-credits.html)
 
