@@ -1,0 +1,5 @@
+Desk scan: captured and provided by the project author.
+Public derivative: cropped, screen-region Gaussians removed, SPZ v3 compressed.
+Conversion: @adobe/spz 0.2.3, https://www.npmjs.com/package/@adobe/spz
+Source: https://github.com/nianticlabs/spz
+Tool license: MIT (Niantic Labs 2024); full license is retained with the private build tools.

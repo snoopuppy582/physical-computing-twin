@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {roomFromURL, pageURL, STALE_MS} from './cooler-core.mjs';
 import {connectCooler} from './cooler-mqtt.mjs';
+import {validateSceneManifest} from './cooler-scene.mjs';
 
 const $ = id => document.getElementById(id);
 const room = roomFromURL(location.href);
 const controlURL = pageURL(location.href, 'twin-control.html', room);
 for (const id of ['control-link', 'control-link-card']) $(id).href = controlURL;
 $('room-label').textContent = room;
+$('viewer-home').href = pageURL(location.href, 'cooler.html', room);
 history.replaceState(null, '', `${location.pathname}${location.search}#${new URLSearchParams({room})}`);
 
 let transport = null, targetDuty = 0, currentDuty = 0, lastCommandAt = 0, count = 0, ack = null;
@@ -20,6 +22,7 @@ function displayOutput() {
   $('signal-label').textContent = signal === 'active' ? (targetDuty ? '수신한 출력으로 가상 팬 회전 중' : '정지 명령 반영됨') :
     signal === 'stale' ? '입력이 끊겨 가상 팬을 정지했습니다.' : '제어판 입력 대기';
 }
+
 function report() { transport?.status({duty: targetDuty, signal, ack}); }
 function connect() {
   transport?.close();
@@ -51,180 +54,212 @@ function connect() {
   }
 }
 
+
 const stage = $('cooler-stage');
-let renderer, scene, camera, controls, rotor, laptop, fan, selectedView = 'overview';
-const laptopMaterials = [];
+let renderer, scene, camera, controls, rotor, scan, screenCovers, equipment, manifest;
+let sceneReady = false, contextLost = false, selectedView = 'overview', transitionCamera = false;
 const cameraTarget = new THREE.Vector3(), cameraPosition = new THREE.Vector3();
-let transitionCamera = false;
+const viewNames = ['overview', 'fan', 'structure'];
+let activeUntil = 0;
 
 function material(color, metalness = 0, roughness = .55) {
   return new THREE.MeshStandardMaterial({color, metalness, roughness});
 }
-function box(parent, size, position, mat, name = '') {
+function box(parent, size, position, mat) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
-  mesh.position.set(...position); mesh.castShadow = true; mesh.receiveShadow = true;
-  mesh.name = name; parent.add(mesh); return mesh;
+  mesh.position.set(...position); parent.add(mesh); return mesh;
 }
-function rod(parent, start, end, thickness, mat) {
+function rod(parent, start, end, radius, mat) {
   const a = new THREE.Vector3(...start), b = new THREE.Vector3(...end), delta = b.clone().sub(a);
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(thickness, thickness, delta.length(), 12), mat);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, delta.length(), 12), mat);
   mesh.position.copy(a).add(b).multiplyScalar(.5);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
-  mesh.castShadow = true; parent.add(mesh); return mesh;
+  parent.add(mesh); return mesh;
 }
-function addLaptop(parent) {
-  laptop = new THREE.Group(); laptop.name = 'laptop'; parent.add(laptop);
-  const chassis = material('#555d61', .65, .36), black = material('#242c2e', .25), keys = material('#394548', .3);
-  const screen = material('#123b3a', .05, .43), graphic = material('#64a494', .05);
-  laptopMaterials.push(chassis, black, keys, screen, graphic);
-  box(laptop, [.326, .016, .23], [0, .009, 0], chassis, 'laptop-base');
-  box(laptop, [.288, .002, .097], [0, .018, -.035], black);
-  for (let row = 0; row < 5; row++) for (let col = 0; col < 14; col++) {
-    box(laptop, [.0164, .0018, .0125], [-.13 + col * .02, .0198, -.073 + row * .018], keys);
-  }
-  box(laptop, [.102, .0015, .046], [0, .018, .064], black);
-  // A row of shallow vents identifies the underside; this is a layout study,
-  // not a measurement of this laptop's exact ventilation pattern.
-  for (let i = 0; i < 13; i++) box(laptop, [.009, .001, .066], [-.115 + i * .019, .0002, -.022], black);
-  const hinge = new THREE.Group(); hinge.position.set(0, .019, -.109); hinge.rotation.x = -.24; laptop.add(hinge);
-  box(hinge, [.326, .205, .009], [0, .102, 0], chassis);
-  box(hinge, [.307, .181, .001], [0, .103, .0051], black);
-  box(hinge, [.295, .167, .001], [0, .104, .006], screen);
-  // Minimal screen marks are geometry rather than a screenshot of unrelated work.
-  for (let i = 0; i < 5; i++) box(hinge, [.11 - i * .014, .003, .001], [-.062, .15 - i * .012, .0067], graphic);
-  for (let i = 0; i < 14; i++) box(hinge, [.008, .015 + Math.sin(i * .45) * .01, .001], [-.122 + i * .019, .057, .0067], graphic);
+function applyTransform(object, data) {
+  object.position.fromArray(data.position); object.quaternion.fromArray(data.quaternion).normalize();
+  object.scale.setScalar(data.scale ?? 1);
 }
-function addFan(parent) {
-  fan = new THREE.Group(); fan.name = 'additional-fan'; fan.position.set(0, -.058, .002); parent.add(fan);
-  const frame = material('#354a46', .24, .42), hub = material('#233c35', .35, .38);
-  const blade = material('#5f8d79', .2, .43), fastener = material('#a7b9ac', .7, .3);
-  box(fan, [.12, .023, .009], [0, 0, -.0555], frame);
-  box(fan, [.12, .023, .009], [0, 0, .0555], frame);
-  box(fan, [.009, .023, .102], [-.0555, 0, 0], frame);
-  box(fan, [.009, .023, .102], [.0555, 0, 0], frame);
+function createFan() {
+  equipment = new THREE.Group(); equipment.name = 'fan-and-mount'; scene.add(equipment);
+  applyTransform(equipment, manifest.fan);
+  equipment.scale.multiplyScalar(manifest.fan.size / .12);
+  const frame = material('#344f48', .22, .44), hub = material('#1c392f', .3, .4);
+  const blade = material('#71b294', .12, .52), fastener = material('#b0bfb2', .65, .35);
+  box(equipment, [.12, .023, .009], [0, 0, -.0555], frame);
+  box(equipment, [.12, .023, .009], [0, 0, .0555], frame);
+  box(equipment, [.009, .023, .102], [-.0555, 0, 0], frame);
+  box(equipment, [.009, .023, .102], [.0555, 0, 0], frame);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(.052, .0035, 10, 56), frame);
-  ring.rotation.x = Math.PI / 2; fan.add(ring);
+  ring.rotation.x = Math.PI / 2; equipment.add(ring);
   for (const x of [-.051, .051]) for (const z of [-.051, .051]) {
     const screw = new THREE.Mesh(new THREE.CylinderGeometry(.0025, .0025, .024, 10), fastener);
-    screw.position.set(x, .001, z); fan.add(screw);
+    screw.position.set(x, .001, z); equipment.add(screw);
   }
   for (let i = 0; i < 4; i++) {
     const angle = i * Math.PI / 2 + .5;
-    rod(fan, [0, -.009, 0], [.051 * Math.cos(angle), -.009, .051 * Math.sin(angle)], .0017, frame);
+    rod(equipment, [0, -.009, 0], [.051 * Math.cos(angle), -.009, .051 * Math.sin(angle)], .0017, frame);
   }
-  rotor = new THREE.Group(); rotor.name = 'virtual-fan-rotor'; fan.add(rotor);
-  const center = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .018, 32), hub);
-  rotor.add(center);
+  rotor = new THREE.Group(); rotor.name = 'virtual-fan-rotor'; equipment.add(rotor);
+  rotor.add(new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .018, 32), hub));
   const shape = new THREE.Shape(); shape.moveTo(.011, -.006);
   shape.bezierCurveTo(.03, -.006, .052, -.005, .049, .014);
   shape.bezierCurveTo(.04, .019, .019, .009, .011, .006); shape.closePath();
-  const bladeGeometry = new THREE.ExtrudeGeometry(shape, {depth: .0018, bevelEnabled: false, curveSegments: 8});
-  bladeGeometry.rotateX(-Math.PI / 2);
-  for (let i = 0; i < 7; i++) { const leaf = new THREE.Mesh(bladeGeometry, blade); leaf.rotation.y = i * Math.PI * 2 / 7; leaf.castShadow = true; rotor.add(leaf); }
-  // Four slim removable straps communicate the planned mounting arrangement.
-  const strap = material('#263e38', .05, .8);
-  for (const x of [-.052, .052]) rod(parent, [x, -.06, -.048], [Math.sign(x) * .113, -.034, -.05], .002, strap);
-  for (const x of [-.052, .052]) rod(parent, [x, -.06, .048], [Math.sign(x) * .113, -.034, .067], .002, strap);
-}
-function setView(view, instant = false) {
-  selectedView = view;
-  for (const name of ['overview', 'bottom', 'fan']) {
-    $(`view-${name}`).classList.toggle('selected', name === view);
-    $(`view-${name}`).setAttribute('aria-pressed', String(name === view));
+  const geometry = new THREE.ExtrudeGeometry(shape, {depth: .0018, bevelEnabled: false, curveSegments: 8});
+  geometry.rotateX(-Math.PI / 2);
+  for (let i = 0; i < 7; i++) {
+    const leaf = new THREE.Mesh(geometry, blade); leaf.rotation.y = i * Math.PI * 2 / 7; rotor.add(leaf);
   }
-  const seeThrough = view !== 'overview';
-  for (const mat of laptopMaterials) { mat.transparent = seeThrough; mat.opacity = seeThrough ? .13 : 1; mat.depthWrite = !seeThrough; mat.needsUpdate = true; }
-  laptop.traverse(node => { if (node.isMesh) node.castShadow = !seeThrough; });
-  const views = {
-    overview: {position: [.57, 1.22, .7], target: [0, .89, 0]},
-    bottom: {position: [.31, 1.08, .39], target: [0, .835, 0]},
-    fan: {position: [.17, .99, .2], target: [0, .809, .005]}
-  };
-  const chosen = views[view]; cameraPosition.fromArray(chosen.position); cameraTarget.fromArray(chosen.target);
-  if (camera.aspect < 1) cameraPosition.sub(cameraTarget).multiplyScalar(1.16).add(cameraTarget);
-  if (instant) { camera.position.copy(cameraPosition); controls.target.copy(cameraTarget); controls.update(); transitionCamera = false; }
-  else transitionCamera = true;
-  $('view-note').textContent = seeThrough ? '노트북을 반투명으로 표시한 설치 구상' : '드래그로 회전 · 휠로 확대';
+  // Removable mounting straps, drawn only as an installation concept. The
+  // scanned stand and laptop are not duplicated with fabricated mesh bodies.
+  const strap = material('#789587', .35, .5);
+  for (const x of [-1, 1]) for (const z of [-1, 1]) {
+    rod(equipment, [x * .051, 0, z * .048], [x * .095, .018, z * .048], .0025, strap);
+    box(equipment, [.024, .004, .016], [x * .096, .019, z * .048], strap);
+    rod(equipment, [x * .104, .018, z * .048], [x * .104, .032, z * .048], .0025, strap);
+  }
 }
-function buildScene() {
-  renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+function setView(name, instant = false) {
+  if (!manifest || !scan) return;
+  selectedView = name;
+  for (const id of viewNames) {
+    $(`view-${id}`).classList.toggle('selected', id === name);
+    $(`view-${id}`).setAttribute('aria-pressed', String(id === name));
+  }
+  const isolated = name === 'structure';
+  scan.visible = !isolated; screenCovers.visible = !isolated;
+  // The fan view is a transparent installation study. Spark propagates the
+  // public opacity property to its render context on the next update.
+  scan.opacity = name === 'fan' ? .4 : 1;
+  scene.background.set(isolated ? '#e7ebe4' : '#242b2b');
+  const view = manifest.views[name];
+  cameraPosition.fromArray(view.position); cameraTarget.fromArray(view.target);
+  if (camera.aspect < 1) cameraPosition.sub(cameraTarget).multiplyScalar(Math.min(1.5, 1 / Math.sqrt(camera.aspect))).add(cameraTarget);
+  if (instant) {
+    camera.position.copy(cameraPosition); controls.target.copy(cameraTarget); controls.update(); transitionCamera = false;
+  } else transitionCamera = true;
+  $('view-note').textContent = isolated ? '배경을 숨긴 팬·고정부 설치 구상' : name === 'fan' ? '배경을 흐리게 표시한 설치 구상' : '드래그로 회전 · 휠로 확대';
+  activeUntil = performance.now() + 2000;
+  stage.dataset.view = name;
+}
+function loading(label, progress = null, detail = '') {
+  $('scene-loading').hidden = false; $('loading-label').textContent = label;
+  if (progress === null) $('loading-progress').removeAttribute('value');
+  else $('loading-progress').value = Math.max(0, Math.min(100, progress));
+  if (detail) $('loading-detail').textContent = detail;
+}
+function failScene(message) {
+  sceneReady = false; targetDuty = 0; transport?.close();
+  renderer?.setAnimationLoop(null);
+  stage.dataset.ready = 'false';
+  loading('책상 스캔을 열지 못했습니다.', 0, message);
+  $('loading-progress').hidden = true; $('reload-scene').hidden = false;
+  $('connection-label').textContent = '장면 연결 대기'; $('connection').classList.remove('live');
+  for (const name of viewNames) $(`view-${name}`).disabled = true;
+}
+async function downloadScan(url) {
+  const response = await fetch(url, {signal: AbortSignal.timeout(120000)});
+  if (!response.ok) throw new Error(`스캔 파일 요청 실패 (${response.status}). 새로고침 후 다시 시도해 주세요.`);
+  const total = Number(response.headers.get('content-length')) || manifest.asset.bytes || 0;
+  if (!response.body) return new Uint8Array(await response.arrayBuffer());
+  const reader = response.body.getReader(), chunks = []; let received = 0;
+  for (;;) {
+    const {done, value} = await reader.read(); if (done) break;
+    chunks.push(value); received += value.byteLength;
+    loading('책상 스캔을 불러오고 있습니다.', total ? received / total * 85 : null,
+      `${(received / 1048576).toFixed(1)} MB${total ? ` / ${(total / 1048576).toFixed(1)} MB` : ''}`);
+  }
+  const bytes = new Uint8Array(received); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes;
+}
+function createRenderer() {
+  renderer = new THREE.WebGLRenderer({antialias: false, powerPreference: 'default'});
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.domElement.setAttribute('aria-label', '책상 위 노트북과 거치대 아래에 설치할 냉각팬의 3D 구상');
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.domElement.setAttribute('aria-label', '직접 스캔한 책상과 추가 냉각팬의 3D 설치 구상');
   stage.prepend(renderer.domElement);
-  scene = new THREE.Scene(); scene.background = new THREE.Color('#e7ebe4');
-  scene.fog = new THREE.Fog('#e7ebe4', 2.2, 5);
-  camera = new THREE.PerspectiveCamera(34, 1, .005, 20);
+  scene = new THREE.Scene(); scene.background = new THREE.Color('#242b2b');
+  camera = new THREE.PerspectiveCamera(manifest.camera.fov, 1, .005, 100);
+  camera.up.fromArray(manifest.camera.up).normalize();
   controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
-  controls.minDistance = .18; controls.maxDistance = 2; controls.maxPolarAngle = Math.PI * .49;
-  controls.enablePan = false; controls.addEventListener('start', () => { transitionCamera = false; });
-  scene.add(new THREE.HemisphereLight('#e9f4ee', '#7e8e7f', 2.4));
-  const light = new THREE.DirectionalLight('#fff5df', 3.4); light.position.set(-1.2, 2.3, 1.2);
-  light.castShadow = true; light.shadow.mapSize.set(2048, 2048);
-  Object.assign(light.shadow.camera, {left: -1, right: 1, top: 1, bottom: -1, near: .1, far: 5});
-  light.shadow.bias = -.0002; light.shadow.normalBias = .002; scene.add(light);
-  const fill = new THREE.DirectionalLight('#def2eb', 1.1); fill.position.set(1, 1.1, -1); scene.add(fill);
-
-  // Keep the workspace and equipment separate so a later desk SPZ can replace
-  // the simple context without changing the MQTT-controlled equipment group.
-  const workspace = new THREE.Group(); workspace.name = 'workspace-context'; scene.add(workspace);
-  const equipment = new THREE.Group(); equipment.name = 'equipment-root'; scene.add(equipment);
-  const oak = material('#c6b79a', .02, .8), silver = material('#aab5b0', .75, .32), rubber = material('#34443f', .05, .9);
-  box(workspace, [1.15, .034, .64], [0, .715, 0], oak, 'desk');
-  box(workspace, [.75, .003, .38], [0, .734, .02], material('#abb8a8', .05, .85), 'desk-mat');
-  for (const x of [-.48, .48]) for (const z of [-.23, .23]) box(workspace, [.035, .7, .035], [x, .35, z], silver);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), material('#e7ebe4', 0, 1)); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; workspace.add(floor);
-  // Foldable stand, interpreted from the user's product type. Final dimensions
-  // and mounting points remain subject to photos and measurement.
-  const angle = .26, assemblyY = .881;
-  function supportY(z) { return assemblyY - Math.sin(angle) * z - .014; }
-  for (const x of [-.117, .117]) {
-    box(equipment, [.028, .012, .242], [x, .746, .004], silver);
-    for (const z of [-.089, .092]) box(equipment, [.03, .004, .04], [x, .739, z], rubber);
-    rod(equipment, [x, .755, .095], [x, supportY(-.094), -.094], .006, silver);
-    rod(equipment, [x, .755, -.094], [x, supportY(.094), .094], .005, silver);
-    rod(equipment, [x, supportY(-.112), -.112], [x, supportY(.11), .11], .0065, silver);
-    box(equipment, [.032, .025, .008], [x, supportY(.113) + .01, .113], silver);
-    const hinge = new THREE.Mesh(new THREE.CylinderGeometry(.009, .009, .021, 18), silver);
-    hinge.rotation.z = Math.PI / 2; hinge.position.set(x, .804, 0); equipment.add(hinge);
-  }
-  rod(equipment, [-.117, .75, -.066], [.117, .75, -.066], .004, silver);
-  const assembly = new THREE.Group(); assembly.name = 'laptop-fan-assembly'; assembly.position.y = assemblyY; assembly.rotation.x = angle; equipment.add(assembly);
-  addLaptop(assembly); addFan(assembly);
-
+  controls.minDistance = manifest.camera.minDistance ?? .08;
+  controls.maxDistance = manifest.camera.maxDistance ?? 8;
+  controls.minPolarAngle = .05; controls.maxPolarAngle = Math.PI * .93; controls.enablePan = false;
+  controls.addEventListener('start', () => { transitionCamera = false; activeUntil = performance.now() + 2000; });
+  controls.addEventListener('change', () => { activeUntil = performance.now() + 1000; });
+  scene.add(new THREE.HemisphereLight('#edf7ef', '#7a8b7d', 2));
+  const light = new THREE.DirectionalLight('#fff3dc', 2.2); light.position.set(1, 3, 2); scene.add(light);
+  const fill = new THREE.DirectionalLight('#d6f1eb', .9); fill.position.set(-2, 1, -2); scene.add(fill);
   const resize = () => {
     const width = stage.clientWidth, height = stage.clientHeight;
+    // Limit both DPR and total pixels on a laptop already affected by heat.
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35, Math.sqrt(1600000 / (width * height))));
     renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
+    activeUntil = performance.now() + 1500;
   };
-  new ResizeObserver(resize).observe(stage); resize(); setView('overview', true);
-  for (const name of ['overview', 'bottom', 'fan']) $(`view-${name}`).addEventListener('click', () => setView(name));
-  $('reset-view').addEventListener('click', () => setView(selectedView));
+  new ResizeObserver(resize).observe(stage); resize();
   renderer.domElement.addEventListener('webglcontextlost', event => {
-    event.preventDefault(); targetDuty = 0; transport?.close();
-    $('scene-loading').textContent = '3D 표시가 중단되었습니다. 페이지를 새로고침해 주세요.'; $('scene-loading').hidden = false;
-    $('connection-label').textContent = '3D 표시 중단'; $('connection').classList.remove('live');
+    event.preventDefault(); contextLost = true;
+    failScene('3D 표시가 중단되었습니다. 페이지를 다시 불러와 주세요.');
   });
-  $('scene-loading').hidden = true;
-  let lastFrame = performance.now();
+  let lastRender = 0;
   renderer.setAnimationLoop(now => {
-    const dt = Math.min((now - lastFrame) / 1000, .1); lastFrame = now;
+    if (contextLost || document.hidden) return;
+    const fps = targetDuty > 0 || currentDuty > .1 || transitionCamera || now < activeUntil || !sceneReady ? 30 : 10;
+    if (now - lastRender < 1000 / fps) return;
+    const dt = Math.min((now - lastRender) / 1000, .15); lastRender = now;
     currentDuty += (targetDuty - currentDuty) * (1 - Math.exp(-7 * dt));
-    // Illustrative rotation speed is deliberately not reported as measured RPM.
-    rotor.rotation.y += currentDuty / 100 * 14 * dt;
+    // The mesh's visual rotation is not a measured physical RPM.
+    if (rotor) rotor.rotation.y += currentDuty / 100 * 14 * dt;
     if (transitionCamera) {
       camera.position.lerp(cameraPosition, 1 - Math.exp(-8 * dt));
       controls.target.lerp(cameraTarget, 1 - Math.exp(-8 * dt));
       if (camera.position.distanceTo(cameraPosition) < .001) transitionCamera = false;
     }
     controls.update(); renderer.render(scene, camera);
+    if (equipment && sceneReady) {
+      const anchor = equipment.position.clone().project(camera);
+      const marker = $('fan-marker');
+      marker.hidden = selectedView === 'structure' || Math.abs(anchor.x) > .9 || Math.abs(anchor.y) > .85 || anchor.z > 1;
+      marker.style.left = `${(anchor.x + 1) * 50}%`; marker.style.top = `${(1 - anchor.y) * 50}%`;
+    }
   });
 }
+async function buildScene() {
+  loading('장면 설정을 확인하고 있습니다.', 0);
+  const manifestURL = new URL('assets/desk/scene.json', location.href);
+  const response = await fetch(manifestURL, {cache: 'no-cache', signal: AbortSignal.timeout(15000)});
+  if (!response.ok) throw new Error(`장면 설정 요청 실패 (${response.status}). 잠시 후 다시 열어 주세요.`);
+  manifest = validateSceneManifest(await response.json(), manifestURL);
+  loading('3D 표시를 준비하고 있습니다.');
+  const {SparkRenderer, SplatMesh} = await import('@sparkjsdev/spark');
+  createRenderer(); scene.add(new SparkRenderer({renderer}));
+  const bytes = await downloadScan(manifest.asset.resolvedURL);
+  loading('스캔 데이터를 3D 장면으로 준비하고 있습니다.', 90, '잠시 기다려 주세요.');
+  scan = new SplatMesh({fileBytes: bytes, fileName: manifest.asset.url.split('/').pop(), editable: false, raycastable: false});
+  await scan.initialized;
+  if (!scan.numSplats) throw new Error('스캔에 표시할 데이터가 없습니다.');
+  applyTransform(scan, manifest.scan); scan.name = 'sanitized-desk-scan'; scene.add(scan);
+  screenCovers = new THREE.Group(); screenCovers.name = 'blank-screen-surfaces'; scene.add(screenCovers);
+  // Screen splats are already removed from the distributed asset. These blank
+  // faces only fill the resulting holes; privacy does not depend on a cover.
+  for (const data of manifest.screenCovers || []) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(...data.size), new THREE.MeshBasicMaterial({color: '#17211f', side: THREE.DoubleSide}));
+    applyTransform(mesh, data); screenCovers.add(mesh);
+  }
+  createFan(); setView('overview', true);
+  sceneReady = true; stage.dataset.ready = 'true';
+  for (const name of viewNames) $(`view-${name}`).disabled = false;
+  $('scene-loading').hidden = true;
+  window.coolerScene = {scene, camera, controls, renderer, scan, equipment, rotor, manifest, setView};
+  connect();
+}
 
-try { buildScene(); connect(); }
-catch (error) { $('scene-loading').textContent = `3D 장면을 열지 못했습니다. WebGL을 지원하는 브라우저에서 다시 열어 주세요. (${error.message})`; }
-$('reconnect').addEventListener('click', () => { if (renderer && rotor) connect(); });
+for (const name of viewNames) $(`view-${name}`).addEventListener('click', () => setView(name));
+$('reset-view').addEventListener('click', () => setView(selectedView));
+$('reload-scene').addEventListener('click', () => location.reload());
+$('reconnect').addEventListener('click', () => { if (sceneReady) connect(); });
 setInterval(() => {
   if (lastCommandAt && performance.now() - lastCommandAt > STALE_MS && signal !== 'stale') {
     targetDuty = 0; signal = 'stale'; displayOutput(); report();
@@ -233,4 +268,5 @@ setInterval(() => {
 }, 250);
 setInterval(report, 2000);
 window.addEventListener('pagehide', () => transport?.close());
-window.addEventListener('pageshow', event => { if (event.persisted && renderer && rotor) connect(); });
+window.addEventListener('pageshow', event => { if (event.persisted && sceneReady) connect(); });
+buildScene().catch(error => { console.error(error); failScene(error.message); });

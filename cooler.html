@@ -2,28 +2,29 @@
 <html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>냉각 거치대 · 3D 트윈</title>
-<meta name="description" content="노트북과 냉각팬의 배치를 3D로 확인하고 MQTT 제어판으로 가상 팬을 움직이는 설치 구상입니다.">
-<link rel="icon" href="data:,"><link rel="stylesheet" href="cooler.css?v=1">
-<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
+<meta name="description" content="직접 스캔한 책상에 냉각팬 설치 구상을 배치하고 MQTT 제어판으로 가상 팬을 움직입니다.">
+<link rel="icon" href="data:,"><link rel="stylesheet" href="cooler.css?v=2">
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/","@sparkjsdev/spark":"./vendor/spark/spark.module.js"}}</script>
 <script src="vendor/mqtt.min.js" defer></script>
 </head><body>
-<header class="topbar"><a class="brand" href="cooler.html"><span class="brand-symbol" aria-hidden="true">◈</span><span>냉각 거치대<small>3D DIGITAL TWIN</small></span></a><nav><a id="control-link" href="twin-control.html" target="_blank" rel="noopener">제어판 열기 <span aria-hidden="true">↗</span></a><span class="connection" id="connection" role="status"><i></i><span id="connection-label">MQTT 연결 중</span></span></nav></header>
+<header class="topbar"><a class="brand" id="viewer-home" href="cooler.html"><span class="brand-symbol" aria-hidden="true">◈</span><span>냉각 거치대<small>3D DIGITAL TWIN</small></span></a><nav><a id="control-link" href="twin-control.html" target="_blank" rel="noopener">제어판 열기 <span aria-hidden="true">↗</span></a><span class="connection" id="connection" role="status"><i></i><span id="connection-label">장면 준비 중</span></span></nav></header>
 <main class="viewer-layout">
 <section class="scene-column" aria-label="냉각 거치대 3D 장면">
-<div class="page-heading"><div><p class="eyebrow">노트북 · 거치대 · 냉각팬</p><h1>냉각 거치대 설치 구상</h1><p class="intro">거치대와 팬의 위치를 살펴보고, 제어판에서 가상 팬을 움직여 보세요.</p></div><span class="badge">설치 구상</span></div>
+<div class="page-heading"><div><p class="eyebrow">실제 책상 스캔 + 냉각팬 메시</p><h1>냉각팬 설치 구상</h1><p class="intro">내 책상에서 팬의 위치를 확인하고, 제어판으로 가상 팬을 움직여 보세요.</p></div><span class="badge">내 책상</span></div>
 <div id="cooler-stage" class="stage">
 <div class="stage-label"><span class="live-dot"></span> MQTT 시연 · 실제 팬 미연결</div>
-<div class="view-buttons" aria-label="3D 시점"><button id="view-overview" class="selected" aria-pressed="true">전체 보기</button><button id="view-bottom" aria-pressed="false">하판 보기</button><button id="view-fan" aria-pressed="false">팬 확대</button></div>
-<div id="scene-loading" class="loading" role="status">3D 장면을 준비하고 있습니다.</div>
+<div id="fan-marker" class="fan-marker" hidden>팬 설치 구상</div>
+<div class="view-buttons" aria-label="3D 시점"><button id="view-overview" class="selected" aria-pressed="true" disabled>책상 보기</button><button id="view-fan" aria-pressed="false" disabled>팬 위치</button><button id="view-structure" aria-pressed="false" disabled>구조 보기</button></div>
+<div id="scene-loading" class="loading" role="status"><div><strong id="loading-label">책상 스캔을 준비하고 있습니다.</strong><progress id="loading-progress" max="100" value="0" aria-label="스캔 로딩 진행"></progress><p id="loading-detail">처음 열 때는 잠시 걸릴 수 있습니다.</p><button id="reload-scene" class="button primary" hidden>다시 불러오기</button></div></div>
 <div class="stage-footer"><span id="view-note">드래그로 회전 · 휠로 확대</span><button id="reset-view" class="text-button">시점 초기화</button></div>
 </div>
-<div class="scene-caption"><p><strong>01 노트북</strong><span>내부 온도 수집 예정</span></p><p><strong>02 기존 거치대</strong><span>아래 공간에 팬 설치</span></p><p><strong>03 추가 냉각팬</strong><span>MQTT로 가상 회전 제어</span></p></div>
+<div class="scene-caption"><p><strong>01 내 책상</strong><span>촬영 당시의 책상 배치</span></p><p><strong>02 팬과 고정부</strong><span>추가할 부품의 배치 구상</span></p><p><strong>03 가상 팬 회전</strong><span>MQTT 메시지로 제어</span></p></div>
 </section>
 <aside class="side-panel" aria-label="연결과 측정 상태">
 <section class="card output-card"><div class="section-kicker">VIRTUAL FAN</div><h2>가상 팬 출력</h2><div class="big-number"><span id="duty-value">0</span><small>%</small></div><div class="duty-track"><i id="duty-bar"></i></div><p id="signal-label" class="signal" role="status">제어판 입력 대기</p><dl class="detail-list"><div><dt>받은 명령</dt><dd><span id="command-count">0</span>회</dd></div><div><dt>최근 수신</dt><dd id="last-command">—</dd></div><div><dt>연결 번호</dt><dd id="room-label"></dd></div></dl><a id="control-link-card" class="button primary" href="twin-control.html" target="_blank" rel="noopener">제어판에서 출력 바꾸기 ↗</a></section>
 <section class="card measurements"><h2>실물 측정값</h2><div class="measurement-grid"><div><small>CPU 온도</small><strong>—<em>°C</em></strong></div><div><small>GPU 온도</small><strong>—<em>°C</em></strong></div><div><small>팬 회전수</small><strong>—<em>RPM</em></strong></div></div><p class="muted">실제 노트북·팬 연결 후 표시합니다.</p></section>
 <section class="connection-foot"><span>제어판 → EMQX → 3D 장면</span><button id="reconnect" class="text-button">다시 연결</button></section>
 </aside>
-</main><footer class="footer"><span>문건호 · 실감피지컬컴퓨팅</span><span>사진과 실측을 반영하기 전의 배치 구상</span></footer>
-<noscript>3D 장면을 보려면 JavaScript를 켜 주세요.</noscript><script type="module" src="cooler.js?v=1"></script>
+</main><footer class="footer"><span>문건호 · 실감피지컬컴퓨팅</span><span>고정부의 세부 치수는 하판 사진과 실측 후 조정합니다.</span></footer>
+<noscript>3D 장면을 보려면 JavaScript를 켜 주세요.</noscript><script type="module" src="cooler.js?v=2"></script>
 </body></html>
